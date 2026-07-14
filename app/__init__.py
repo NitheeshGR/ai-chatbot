@@ -1,13 +1,19 @@
-from fastapi import FastAPI
+from flask import Flask
 
-from config import settings
+from config import config
+from app.extensions import db, migrate, cors
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(title="AI Chatbot")
+def create_app(config_class=config):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
 
-    @app.get("/health")
-    async def health():
+    db.init_app(app)
+    migrate.init_app(app, db)
+    cors.init_app(app)
+
+    @app.route("/health")
+    def health():
         return {"status": "ok"}
 
     return app

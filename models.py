@@ -8,6 +8,7 @@ from db import Base
 
 
 class Conversation(Base):
+    """Stores each chat conversation with a title and timestamps."""
     __tablename__ = "conversations"
 
     id = Column(Integer, primary_key=True)
@@ -22,6 +23,7 @@ class Conversation(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # One conversation has many messages — deleting a conversation deletes its messages
     messages = relationship(
         "Message", backref="conversation", lazy=True, cascade="all, delete-orphan"
     )
@@ -39,13 +41,17 @@ class Conversation(Base):
 
 
 class Message(Base):
+    """Stores a single message (user or assistant) inside a conversation."""
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True)
+    # Links to the conversation this message belongs to
     conversation_id = Column(
         Integer, ForeignKey("conversations.id"), nullable=False
     )
+    # "user" or "assistant"
     role = Column(String(20), nullable=False)
+    # The actual message text
     content = Column(Text, nullable=False)
     created_at = Column(
         DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)

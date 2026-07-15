@@ -7,17 +7,21 @@ from db import SessionLocal
 from models import Conversation, Message
 from services.chat_service import chat
 
+# Page config — sets the browser tab title and layout
 st.set_page_config(page_title="AI Chatbot", page_icon="💬", layout="wide")
 
+# Track which conversation is currently open (stored in browser session)
 if "current_conversation_id" not in st.session_state:
     st.session_state.current_conversation_id = None
 
+# Stop app if no API key is configured
 if not HF_TOKEN:
     st.error("Please set HF_TOKEN in your .env file.")
     st.stop()
 
 
 def get_conversations():
+    """Fetch all conversations from DB, sorted by most recently updated first."""
     session = SessionLocal()
     try:
         return (
@@ -30,6 +34,7 @@ def get_conversations():
 
 
 def get_messages(conversation_id: int):
+    """Fetch all messages for a specific conversation, in chronological order."""
     session = SessionLocal()
     try:
         return (
@@ -43,6 +48,7 @@ def get_messages(conversation_id: int):
 
 
 def create_conversation(title: str = "New Conversation") -> int:
+    """Create a new conversation in DB and return its ID."""
     session = SessionLocal()
     try:
         conv = Conversation(title=title)
@@ -54,6 +60,7 @@ def create_conversation(title: str = "New Conversation") -> int:
 
 
 def delete_conversation(conversation_id: int):
+    """Delete a conversation and all its messages from DB (cascade delete)."""
     session = SessionLocal()
     try:
         conv = session.query(Conversation).get(conversation_id)
@@ -65,6 +72,7 @@ def delete_conversation(conversation_id: int):
 
 
 def conversation_exists(conversation_id: int) -> bool:
+    """Check if a conversation still exists in DB (handles deleted conversations)."""
     session = SessionLocal()
     try:
         return session.query(Conversation).get(conversation_id) is not None
@@ -72,9 +80,11 @@ def conversation_exists(conversation_id: int) -> bool:
         session.close()
 
 
+# --- SIDEBAR: conversation list + new chat button ---
 with st.sidebar:
     st.title("💬 AI Chatbot")
 
+    # Button to create a new conversation
     if st.button("+ New Chat", use_container_width=True):
         conv_id = create_conversation()
         st.session_state.current_conversation_id = conv_id
@@ -82,11 +92,13 @@ with st.sidebar:
 
     st.divider()
 
+    # List all conversations with switch and delete buttons
     conversations = get_conversations()
 
     for conv in conversations:
         col1, col2 = st.columns([5, 1])
         with col1:
+            # Click to switch to this conversation
             if st.button(
                 conv.title,
                 key=f"conv_{conv.id}",
@@ -100,6 +112,7 @@ with st.sidebar:
                 st.session_state.current_conversation_id = conv.id
                 st.rerun()
         with col2:
+            # Delete button for each conversation
             if st.button("🗑️", key=f"del_{conv.id}"):
                 delete_conversation(conv.id)
                 if st.session_state.current_conversation_id == conv.id:
@@ -107,21 +120,27 @@ with st.sidebar:
                 st.rerun()
 
 
+# --- MAIN CHAT AREA ---
 if st.session_state.current_conversation_id:
+    # Safety check — if conversation was deleted elsewhere, reset to welcome screen
     if not conversation_exists(st.session_state.current_conversation_id):
         st.session_state.current_conversation_id = None
         st.rerun()
 
+    # Display all previous messages in the chat area
     messages = get_messages(st.session_state.current_conversation_id)
 
     for msg in messages:
         with st.chat_message(msg.role):
             st.markdown(msg.content)
 
+    # Text input at the bottom — user types and sends a message
     if prompt := st.chat_input("Type your message..."):
+        # Show user message immediately
         with st.chat_message("user"):
             st.markdown(prompt)
 
+        # Send to AI, show reply, save both to DB
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
@@ -131,7 +150,9 @@ if st.session_state.current_conversation_id:
                     st.error(f"Error: {e}")
                     st.stop()
 
+        # Refresh page to update sidebar (conversation title, message list)
         st.rerun()
 else:
+    # Welcome screen when no conversation is selected
     st.markdown("### Welcome to AI Chatbot!")
     st.markdown("Click **+ New Chat** in the sidebar to start a conversation.")

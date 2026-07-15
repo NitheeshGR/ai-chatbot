@@ -1,15 +1,12 @@
+# Loads environment variables and provides app configuration (DB URL, API keys)
 import os
 from dotenv import load_dotenv
 
+# Read .env file and load variables into environment
 load_dotenv()
 
+# PostgreSQL connection string — must be set in .env
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_chatbot"
-    )
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-
-
-config = Config()
+# Hugging Face API token — must be set in .env
+HF_TOKEN = os.getenv("HF_TOKEN", "")

@@ -1,3 +1,4 @@
+# Main Streamlit app — UI, sidebar, chat display, and conversation management
 import streamlit as st
 from sqlalchemy import desc
 

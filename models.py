@@ -1,3 +1,4 @@
+# Database models: Conversation and Message tables
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text

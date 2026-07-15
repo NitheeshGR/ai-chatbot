@@ -1,3 +1,4 @@
+# Alembic environment — runs database migrations using SQLAlchemy
 import logging
 from logging.config import fileConfig
 

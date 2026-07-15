@@ -1,8 +1,9 @@
+# Hugging Face chat service — sends messages to the AI and saves to DB
 from huggingface_hub import InferenceClient
 
 from config import HF_TOKEN
 from db import SessionLocal
-from models import Message
+from models import Conversation, Message
 
 SYSTEM_PROMPT = "You are a helpful assistant."
 
@@ -50,5 +51,14 @@ def chat(conversation_id: int, user_message: str) -> str:
         content=assistant_reply,
     ))
     session.commit()
+
+    if not history:
+        title = user_message[:50]
+        if len(user_message) > 50:
+            title += "..."
+        conv = session.query(Conversation).get(conversation_id)
+        if conv:
+            conv.title = title
+            session.commit()
 
     return assistant_reply

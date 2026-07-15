@@ -1,24 +1,27 @@
-from openai import OpenAI
+from huggingface_hub import InferenceClient
 
-from config import config
-from app.extensions import db
-from app.models import Message
-
-_client = None
+from config import HF_TOKEN
+from db import SessionLocal
+from models import Message
 
 SYSTEM_PROMPT = "You are a helpful assistant."
 
+MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
-def _get_client() -> OpenAI:
+_client = None
+
+
+def _get_client() -> InferenceClient:
     global _client
     if _client is None:
-        _client = OpenAI(api_key=config.OPENAI_API_KEY)
+        _client = InferenceClient(token=HF_TOKEN)
     return _client
 
 
 def chat(conversation_id: int, user_message: str) -> str:
+    session = SessionLocal()
     history = (
-        Message.query
+        session.query(Message)
         .filter_by(conversation_id=conversation_id)
         .order_by(Message.created_at)
         .all()
@@ -28,23 +31,24 @@ def chat(conversation_id: int, user_message: str) -> str:
     messages += [{"role": m.role, "content": m.content} for m in history]
     messages.append({"role": "user", "content": user_message})
 
-    response = _get_client().chat.completions.create(
-        model="gpt-3.5-turbo",
+    response = _get_client().chat_completion(
+        model=MODEL,
         messages=messages,
+        max_tokens=1024,
     )
 
     assistant_reply = response.choices[0].message.content
 
-    db.session.add(Message(
+    session.add(Message(
         conversation_id=conversation_id,
         role="user",
         content=user_message,
     ))
-    db.session.add(Message(
+    session.add(Message(
         conversation_id=conversation_id,
         role="assistant",
         content=assistant_reply,
     ))
-    db.session.commit()
+    session.commit()
 
     return assistant_reply

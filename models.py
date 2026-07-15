@@ -1,24 +1,27 @@
 from datetime import datetime, timezone
 
-from app.extensions import db
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from db import Base
 
 
-class Conversation(db.Model):
+class Conversation(Base):
     __tablename__ = "conversations"
 
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255), nullable=False, default="New Conversation")
-    created_at = db.Column(
-        db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255), nullable=False, default="New Conversation")
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
-    updated_at = db.Column(
-        db.DateTime,
+    updated_at = Column(
+        DateTime,
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    messages = db.relationship(
+    messages = relationship(
         "Message", backref="conversation", lazy=True, cascade="all, delete-orphan"
     )
 
@@ -34,17 +37,17 @@ class Conversation(db.Model):
         }
 
 
-class Message(db.Model):
+class Message(Base):
     __tablename__ = "messages"
 
-    id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(
-        db.Integer, db.ForeignKey("conversations.id"), nullable=False
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(
+        Integer, ForeignKey("conversations.id"), nullable=False
     )
-    role = db.Column(db.String(20), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(
-        db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
 
     def __repr__(self):

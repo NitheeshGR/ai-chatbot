@@ -86,8 +86,8 @@ with st.sidebar:
 
     # Button to create a new conversation
     if st.button("+ New Chat", use_container_width=True):
-        conv_id = create_conversation()
-        st.session_state.current_conversation_id = conv_id
+        st.session_state.current_conversation_id = None
+        st.session_state.pending_new_chat = True
         st.rerun()
 
     st.divider()
@@ -110,6 +110,7 @@ with st.sidebar:
                 ),
             ):
                 st.session_state.current_conversation_id = conv.id
+                st.session_state.pending_new_chat = False
                 st.rerun()
         with col2:
             # Delete button for each conversation
@@ -155,4 +156,22 @@ if st.session_state.current_conversation_id:
 else:
     # Welcome screen when no conversation is selected
     st.markdown("### Welcome to AI Chatbot!")
-    st.markdown("Click **+ New Chat** in the sidebar to start a conversation.")
+    if st.session_state.get("pending_new_chat"):
+        # Show chat input for new conversation — conversation created on first message
+        if prompt := st.chat_input("Type your message..."):
+            conv_id = create_conversation()
+            st.session_state.current_conversation_id = conv_id
+            st.session_state.pending_new_chat = False
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    try:
+                        reply = chat(conv_id, prompt)
+                        st.markdown(reply)
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                        st.stop()
+            st.rerun()
+    else:
+        st.markdown("Click **+ New Chat** in the sidebar to start a conversation.")

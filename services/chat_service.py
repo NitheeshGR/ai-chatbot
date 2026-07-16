@@ -1,5 +1,6 @@
 # Hugging Face chat service — sends messages to the AI and saves to DB
-from huggingface_hub import InferenceClient
+import time
+from huggingface_hub import InferenceClient, InferenceTimeoutError
 
 from config import HF_TOKEN
 from db import SessionLocal
@@ -8,8 +9,12 @@ from models import Conversation, Message
 # System prompt sent to the AI at the start of every conversation
 SYSTEM_PROMPT = "You are a helpful assistant."
 
-# The free Hugging Face model we're using for chat
+# Serverless Inference API model — no provider routing needed
 MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+# Retry configuration
+MAX_RETRIES = 5
+TIMEOUT_SECONDS = 60
 
 # Singleton Hugging Face client — created once and reused
 _client = None
@@ -19,8 +24,40 @@ def _get_client() -> InferenceClient:
     """Create and cache the Hugging Face InferenceClient (created once, reused)."""
     global _client
     if _client is None:
-        _client = InferenceClient(token=HF_TOKEN)
+        _client = InferenceClient(
+            model=MODEL,
+            token=HF_TOKEN,
+            timeout=TIMEOUT_SECONDS,
+        )
     return _client
+
+
+def _call_api_with_retry(messages: list) -> str:
+    """Call Hugging Face API with retry logic and exponential backoff."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = _get_client().chat_completion(
+                model=MODEL,
+                messages=messages,
+                max_tokens=512,
+            )
+            return response.choices[0].message.content
+        except InferenceTimeoutError:
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2 ** attempt  # 1s, 2s, 4s
+                time.sleep(wait_time)
+            else:
+                raise Exception("API request timed out after multiple retries")
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "504" in error_msg or "503" in error_msg or "read" in error_msg or "timeout" in error_msg:
+                if attempt < MAX_RETRIES - 1:
+                    wait_time = 2 ** attempt
+                    time.sleep(wait_time)
+                else:
+                    raise Exception(f"Server error after {MAX_RETRIES} retries: {e}")
+            else:
+                raise
 
 
 def chat(conversation_id: int, user_message: str) -> str:
@@ -47,15 +84,8 @@ def chat(conversation_id: int, user_message: str) -> str:
     messages += [{"role": m.role, "content": m.content} for m in history]
     messages.append({"role": "user", "content": user_message})
 
-    # Call Hugging Face API to get AI response
-    response = _get_client().chat_completion(
-        model=MODEL,
-        messages=messages,
-        max_tokens=1024,
-    )
-
-    # Extract the AI's reply text
-    assistant_reply = response.choices[0].message.content
+    # Call Hugging Face API to get AI response (with retry logic)
+    assistant_reply = _call_api_with_retry(messages)
 
     # Step 3: Save both user message and AI reply to database
     session.add(Message(
